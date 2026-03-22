@@ -1,0 +1,38 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# Databases (contain trade data, regenerate from bot)
+*.db
+
+# Analysis artifacts
+*.png
+trade_output_text.txt
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Saved market selections
+.farmer_markets.json
+
+# Test/debug notebooks (contain hardcoded keys)
+test_api.ipynb
+testing_API.ipynb
+predx_demo.ipynb
+
+# Claude
+.claude/

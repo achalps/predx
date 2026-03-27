@@ -23,8 +23,7 @@ predx/
 │   ├── clients/
 │   │   ├── base.py             # Base HTTP client
 │   │   ├── kalshi.py           # Kalshi REST API
-│   │   ├── polymarket.py       # Polymarket CLOB REST API
-│   │   └── delphi.py           # Delphi/other venue client
+│   │   └── polymarket.py       # Polymarket CLOB REST API
 │   ├── models/
 │   │   ├── common.py           # Shared data models
 │   │   ├── kalshi.py           # Kalshi-specific models

@@ -33,12 +33,6 @@ class PolymarketConfig:
     timeout: float = 10.0
 
 
-@dataclass
-class DelphiConfig:
-    api_key: str = field(default_factory=lambda: os.environ["DELPHI_API_KEY"])
-    base_url: str = "https://api.delphiterminal.co/api/v1"
-    timeout: float = 10.0
-
 
 def load_dotenv_if_present() -> None:
     try:

@@ -8,7 +8,6 @@ from typing import Optional
 class Exchange(str, Enum):
     KALSHI = "kalshi"
     POLYMARKET = "polymarket"
-    DELPHI = "delphi"
 
 
 class MarketStatus(str, Enum):

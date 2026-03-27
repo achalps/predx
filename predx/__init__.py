@@ -1,8 +1,7 @@
 from predx._version import __version__
-from predx.config import KalshiConfig, PolymarketConfig, DelphiConfig, load_dotenv_if_present
+from predx.config import KalshiConfig, PolymarketConfig, load_dotenv_if_present
 from predx.clients.kalshi import KalshiClient
 from predx.clients.polymarket import PolymarketClient
-from predx.clients.delphi import DelphiClient
 from predx.models.common import Market, Orderbook, Trade, Position, Order, Exchange, MarketStatus
 from predx.exceptions import PredxError, AuthError, RateLimitError, NotFoundError
 
@@ -12,11 +11,9 @@ __all__ = [
     # Clients
     "KalshiClient",
     "PolymarketClient",
-    "DelphiClient",
     # Config
     "KalshiConfig",
     "PolymarketConfig",
-    "DelphiConfig",
     # Models
     "Market",
     "Orderbook",

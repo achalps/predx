@@ -7,6 +7,23 @@ name = "predx"
 version = "0.1.0"
 description = "The Python toolkit for prediction market traders"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Achal PS"},
+]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+]
+keywords = ["prediction-markets", "polymarket", "kalshi", "trading", "market-making"]
 dependencies = [
     "httpx>=0.27",
     "cryptography>=42.0",
@@ -19,5 +36,14 @@ dependencies = [
 poly-trading = ["py-clob-client>=0.17"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 
+[project.urls]
+Homepage = "https://github.com/achalps/predx"
+Repository = "https://github.com/achalps/predx"
+Issues = "https://github.com/achalps/predx/issues"
+
 [tool.hatch.build.targets.wheel]
 packages = ["predx"]
+exclude = ["predx/tools/"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["predx/tools/", "farmer.py", "farmer.ipynb", "analysis.ipynb", "session_analysis.ipynb", "approve_allowance.py"]

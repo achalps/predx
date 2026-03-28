@@ -101,23 +101,19 @@ All data is normalized into shared models that work across exchanges:
 
 ```
 predx/
-├── predx/                      # Core library
-│   ├── analytics/
-│   │   └── discovery.py        # MarketScanner, movers, trending, to_df
-│   ├── clients/
-│   │   ├── kalshi.py           # Kalshi REST API
-│   │   └── polymarket.py       # Polymarket REST API (Gamma + CLOB + Data)
-│   ├── models/
-│   │   └── common.py           # Shared data models (Market, Orderbook, Trade)
-│   ├── auth/                   # Exchange authentication
-│   ├── ws/                     # WebSocket clients
-│   ├── tools/                  # Trading tools (reward farmer, live dashboard)
-│   └── config.py               # Configuration
-├── tests/                      # Integration tests (live API, no keys needed)
-├── farmer.py                   # Reward farming bot (example strategy)
-├── farmer.ipynb                # Bot control panel
-└── analysis.ipynb              # Post-session analysis
+├── analytics/
+│   └── discovery.py        # MarketScanner, movers, trending, to_df
+├── clients/
+│   ├── kalshi.py           # Kalshi REST API
+│   └── polymarket.py       # Polymarket REST API (Gamma + CLOB + Data)
+├── models/
+│   └── common.py           # Shared data models (Market, Orderbook, Trade)
+├── auth/                   # Exchange authentication
+├── ws/                     # WebSocket clients
+└── config.py               # Configuration
 ```
+
+For example applications and strategies, see [predx-apps](https://github.com/achalps/predx-apps).
 
 ## Development
 

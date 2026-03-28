@@ -1,139 +1,141 @@
 # predx
 
-Python library and reward-farming market-making bot for Polymarket prediction markets, with Kalshi cross-venue support.
+The Python toolkit for prediction market traders.
 
-## Overview
+Screen markets, analyze microstructure, and build strategies on Polymarket and Kalshi — all from Python.
 
-The bot earns Polymarket liquidity rewards by quoting on both sides of NCAA March Madness game markets. It buys YES tokens on both outcomes (Team A YES + Team B YES), then merges them back into USDC to recycle capital.
+## Install
 
-### How rewards work
-- Polymarket pays makers who keep resting limit orders within a `max_spread` of the midpoint
-- Rewards follow a quadratic formula — tighter quotes earn exponentially more
-- For most NCAA games: `max_spread = +/-1 cent`, `min_size = 1000 shares`
-- Only the inside level earns meaningful rewards (1 tick back = 11% of max score)
+```bash
+pip install predx
+```
+
+No API keys needed for market data. Only trading requires authentication.
+
+## Quick Start
+
+```python
+from predx.analytics import MarketScanner, to_df
+
+scanner = MarketScanner()
+
+# Find high-volume, tight-spread markets
+markets = scanner.scan(min_volume_24h=50_000, max_spread=0.03)
+
+# What moved the most today?
+movers = scanner.movers(period="1d", limit=10)
+
+# New markets gaining traction
+trending = scanner.trending(max_age_hours=72)
+
+# Drop into pandas
+df = to_df(markets)
+df[["question", "yes_price", "spread", "volume_24h", "price_change_1d"]].head()
+```
+
+## Features
+
+### Market Discovery
+
+```python
+from predx.analytics import MarketScanner, to_df
+
+scanner = MarketScanner()
+
+# Filter by volume, liquidity, spread, expiry, rewards eligibility
+markets = scanner.scan(
+    min_volume_24h=10_000,
+    min_liquidity=50_000,
+    max_spread=0.05,
+    rewards_only=True,
+    sort_by="volume_24h",
+)
+
+# Enrich with live orderbook depth
+scanner.enrich(markets[:10])
+
+# Export to DataFrame
+df = to_df(markets)
+```
+
+**Available filters:** `min_volume_24h`, `min_volume_1w`, `min_liquidity`, `min_open_interest`, `max_spread`, `min_best_bid`, `max_hours_to_expiry`, `min_hours_to_expiry`, `category`, `rewards_only`, `neg_risk`
+
+**Sort options:** `volume_24h`, `volume_1w`, `volume_total`, `liquidity`, `spread`, `competitive`, `open_interest`, `price_change_1h`, `price_change_1d`, `price_change_1w`, `created_at`
+
+### API Clients
+
+```python
+from predx import PolymarketClient
+
+# No auth needed for read-only access
+with PolymarketClient() as pm:
+    # Market discovery
+    for market in pm.get_markets(active=True, max_items=50):
+        print(market.title, market.yes_price)
+
+    # Orderbook
+    raw = pm.get_raw_market("condition-id-here")
+    ob = pm.get_orderbook(raw.yes_token_id())
+    print(ob.best_bid, ob.best_ask, ob.spread)
+
+    # Price history, midpoint, trades
+    mid = pm.get_midpoint(raw.yes_token_id())
+    history = pm.get_price_history(raw.yes_token_id(), interval="1d")
+    trades = list(pm.get_trades(max_items=100))
+```
+
+**Polymarket** — full read-only access with no API keys. Trading requires `POLYMARKET_PRIVATE_KEY`.
+
+**Kalshi** — all endpoints require `KALSHI_API_KEY` + `KALSHI_PRIVATE_KEY_PATH` (RSA).
+
+### Data Models
+
+All data is normalized into shared models that work across exchanges:
+
+- `Market` — price, volume, open interest, status, close time
+- `Orderbook` — bids/asks with `best_bid`, `best_ask`, `mid`, `spread`, `depth()`
+- `Trade` — price, size, side, timestamp
+- `Position` / `Order` — portfolio tracking
 
 ## Project Structure
 
 ```
 predx/
-├── predx/                      # Core library (pip install -e .)
-│   ├── auth/
-│   │   ├── kalshi.py           # Kalshi RSA signer
-│   │   └── polymarket.py       # Polymarket L1/L2 auth
+├── predx/                      # Core library
+│   ├── analytics/
+│   │   └── discovery.py        # MarketScanner, movers, trending, to_df
 │   ├── clients/
-│   │   ├── base.py             # Base HTTP client
 │   │   ├── kalshi.py           # Kalshi REST API
-│   │   └── polymarket.py       # Polymarket CLOB REST API
+│   │   └── polymarket.py       # Polymarket REST API (Gamma + CLOB + Data)
 │   ├── models/
-│   │   ├── common.py           # Shared data models
-│   │   ├── kalshi.py           # Kalshi-specific models
-│   │   └── polymarket.py       # Polymarket-specific models
-│   ├── ws/
-│   │   ├── kalshi.py           # Kalshi WebSocket client
-│   │   └── polymarket.py       # Polymarket WebSocket (book + price_change)
-│   ├── tools/
-│   │   ├── reward_farmer.py    # Main market-making bot
-│   │   ├── fair_value.py       # Fair value: mid blend, microprice, OBI
-│   │   └── live_dash.py        # Rich TUI dashboard
-│   ├── config.py               # Configuration
-│   └── exceptions.py           # Custom exceptions
-├── farmer.ipynb                # Bot control panel notebook
-├── analysis.ipynb              # Post-session analysis (markouts, timelines)
-├── session_analysis.ipynb      # Detailed PnL analysis
-├── approve_allowance.py        # On-chain token allowance approval
-├── pyproject.toml              # Package config
-└── .env                        # API keys (not committed)
+│   │   └── common.py           # Shared data models (Market, Orderbook, Trade)
+│   ├── auth/                   # Exchange authentication
+│   ├── ws/                     # WebSocket clients
+│   ├── tools/                  # Trading tools (reward farmer, live dashboard)
+│   └── config.py               # Configuration
+├── tests/                      # Integration tests (live API, no keys needed)
+├── farmer.py                   # Reward farming bot (example strategy)
+├── farmer.ipynb                # Bot control panel
+└── analysis.ipynb              # Post-session analysis
 ```
 
-## Setup
+## Development
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[poly-trading,dev]"
+git clone https://github.com/achalps/predx.git
+cd predx
+pip install -e ".[dev]"
+pytest tests/ -v
 ```
 
-Create a `.env` file:
+## Auth Setup
+
+Only needed for trading / Kalshi access:
+
+```bash
+# .env file
+POLYMARKET_PRIVATE_KEY=0x...    # For placing orders on Polymarket
+POLYMARKET_FUNDER=0x...         # Optional, for proxy wallets
+KALSHI_API_KEY=...              # For any Kalshi access
+KALSHI_PRIVATE_KEY_PATH=...     # Path to RSA private key
 ```
-POLYMARKET_PRIVATE_KEY=0x...
-POLYMARKET_FUNDER=0x...
-```
-
-## Usage
-
-The bot is controlled via `farmer.ipynb`:
-
-1. **Discover markets** — queries Polymarket for reward-eligible games
-2. **Select markets** — pick which games to quote on
-3. **Start bot** — runs in a background thread
-4. **Monitor** — check status, positions, open orders
-5. **Adjust** — change OBI thresholds, position caps mid-run
-6. **Stop** — graceful shutdown with order cancellation
-
-## Bot Features
-
-- **WS-driven orderbook** — real-time book construction from Polymarket WebSocket
-- **Event-driven requoting** — cancel+replace on every book change (back-of-queue to minimize fills)
-- **OBI gate** — price-adjusted Order Book Imbalance threshold (strict for favorites, loose for underdogs)
-- **Momentum filter** — blocks buy if last N trades are all sells
-- **Volatility regime filter** — pulls quotes during fast mid changes, resumes after 2s calm
-- **Take-profit** — sell orders at avg cost + 1 tick after fill
-- **Stop-loss** — tick-based, dumps at best bid
-- **Position cap** — hard cap at 1500 shares per token
-- **Skew management** — stops buying heavy side when imbalance exceeds threshold
-- **Position sync** — reconciles with on-chain balances every 5 seconds
-- **SQLite trade tape** — logs every fill with OBI, mid, and full OB snapshot
-- **Stale order cleanup** — cancels orders >2 ticks from inside
-
-## Known Issues
-
-- **Order scoring API** — uses unauthenticated requests, needs L2 auth headers
-- **Auto-merge** — relayer fails with `SafeMath: subtraction overflow` (tokens on main wallet, not Safe). Manual merge via Polymarket UI works
-- **Cross-session cost basis** — only tracks fills from current session; needs CLOB trade history query on startup
-
----
-
-## Changelog
-
-### 2026-03-22 — Initial build
-
-**Bot core (`reward_farmer.py`)**
-- Built full market-making loop: WS orderbook → fair value → requote cycle
-- Implemented both-sides BUY strategy (buy YES on both tokens, merge to recycle USDC)
-- Added OBI gate with price-adjusted thresholds (0.30 for underdogs, 0.75 for favorites)
-- Added momentum filter (blocks buy if last N trades all sells)
-- Added volatility regime filter (pulls quotes on fast mid moves, 2s cooldown)
-- Added take-profit sell orders (avg cost + 1 tick)
-- Added stop-loss (tick-based, dumps at best bid)
-- Added position cap (hard 1500), skew management
-- Added 5-second on-chain position sync
-- Added SQLite trade tape with full OB snapshot at fill time
-- Added stale order cleanup (cancel if >2 ticks from inside)
-- Added market discovery via `get_sampling_markets()` reward filter
-
-**Library (`predx/`)**
-- Built Polymarket REST client (place/cancel orders, balances, positions)
-- Built Polymarket WebSocket client (book snapshots + price_change deltas)
-- Built Kalshi REST client (auth, markets, orderbooks, positions)
-- Built Kalshi WebSocket client
-- Built fair value tools (mid blend, microprice, cross-venue arb, OBI)
-- Built Rich TUI live dashboard
-
-**Bug fixes**
-- Fixed Kalshi `KalshiSigner` base64 encoding (urlsafe → standard)
-- Fixed Kalshi status map ("active" vs "open")
-- Fixed Kalshi price parsing (API switched to dollar strings)
-- Fixed Kalshi orderbook key (`orderbook_fp`)
-- Fixed Kalshi WS auth path doubling bug
-- Fixed Polymarket `get_raw_market` 422 (wrong endpoint)
-- Fixed Polymarket WS event type ("book" not "orderbook")
-- Fixed `neg_risk` parameter in `OrderArgs`
-- Fixed bot position tracking drift (added on-chain sync)
-- Fixed skew threshold being overridden by rewards floor
-- Fixed vol filter not cancelling stale orders during cooldown
-
-**Analysis**
-- Created `analysis.ipynb` (markouts, price+fills timeline, fill distributions)
-- Created `session_analysis.ipynb` (PnL by market, OBI vs markout scatter, position over time)
-- Key finding: cheap/underdog tokens have positive markouts; expensive/favorite tokens get adversely selected
-- Key finding: main P&L drag is spread cost (~2.7 cents/pair vs $1.00 settle), not adverse selection

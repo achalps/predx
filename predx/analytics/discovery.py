@@ -441,12 +441,7 @@ def to_df(markets: list[MarketSnapshot]) -> "pandas.DataFrame":
         df = to_df(scanner.scan(min_volume_24h=50_000))
         df.head()
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        raise ImportError(
-            "pandas is required for to_df(). Install with: pip install predx[analytics]"
-        )
+    import pandas as pd
 
     if not markets:
         return pd.DataFrame()

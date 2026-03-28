@@ -1,1 +1,1 @@
-from predx.analytics.discovery import MarketScanner
+from predx.analytics.discovery import MarketScanner, to_df

@@ -1,6 +1,6 @@
 """Smoke tests for MarketScanner (live Polymarket APIs, no auth needed)."""
 import pytest
-from predx.analytics.discovery import MarketScanner, MarketSnapshot, ScanFilters
+from predx.analytics.discovery import MarketScanner, MarketSnapshot, ScanFilters, to_df
 
 
 @pytest.fixture(scope="module")
@@ -104,3 +104,80 @@ def test_sort_by_liquidity(scanner):
     markets = scanner.scan(sort_by="liquidity", limit=10)
     liqs = [m.liquidity for m in markets]
     assert liqs == sorted(liqs, reverse=True)
+
+
+def test_sort_by_price_change(scanner):
+    markets = scanner.scan(sort_by="price_change_1d", limit=10)
+    changes = [abs(m.price_change_1d) for m in markets]
+    assert changes == sorted(changes, reverse=True)
+
+
+# -- Movers --
+
+def test_movers_returns_results(scanner):
+    movers = scanner.movers(period="1d", limit=10)
+    assert isinstance(movers, list)
+    # All should have nonzero price change
+    for m in movers:
+        assert m.price_change_1d != 0
+
+
+def test_movers_sorted_by_magnitude(scanner):
+    movers = scanner.movers(period="1d", limit=10)
+    if len(movers) >= 2:
+        changes = [abs(m.price_change_1d) for m in movers]
+        assert changes == sorted(changes, reverse=True)
+
+
+def test_movers_1h(scanner):
+    movers = scanner.movers(period="1h", limit=5)
+    assert isinstance(movers, list)
+
+
+def test_movers_1w(scanner):
+    movers = scanner.movers(period="1w", limit=5)
+    assert isinstance(movers, list)
+
+
+def test_movers_invalid_period(scanner):
+    with pytest.raises(ValueError):
+        scanner.movers(period="3d")
+
+
+# -- Trending --
+
+def test_trending_returns_results(scanner):
+    # Use a wide window so we're likely to find something
+    trending = scanner.trending(max_age_hours=168, limit=10, min_volume_24h=100)
+    assert isinstance(trending, list)
+
+
+def test_trending_sorted_by_volume(scanner):
+    trending = scanner.trending(max_age_hours=168, limit=10, min_volume_24h=100)
+    if len(trending) >= 2:
+        vols = [m.volume_24h for m in trending]
+        assert vols == sorted(vols, reverse=True)
+
+
+# -- DataFrame --
+
+def test_to_df(all_markets):
+    df = to_df(all_markets)
+    assert len(df) == len(all_markets)
+    assert "question" in df.columns
+    assert "yes_price" in df.columns
+    assert "volume_24h" in df.columns
+    assert "condition_id" in df.columns
+    assert "has_rewards" in df.columns
+
+
+def test_to_df_empty():
+    df = to_df([])
+    assert len(df) == 0
+
+
+def test_to_df_column_types(all_markets):
+    df = to_df(all_markets)
+    assert df["yes_price"].dtype == float
+    assert df["volume_24h"].dtype == float
+    assert df["has_rewards"].dtype == bool

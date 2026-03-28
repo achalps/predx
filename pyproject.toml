@@ -5,13 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "predx"
 version = "0.1.0"
-description = "Python library for researching and trading on Kalshi and Polymarket"
+description = "The Python toolkit for prediction market traders"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
     "cryptography>=42.0",
     "websockets>=12.0",
     "python-dotenv>=1.0",
+    "pandas>=2.0",
 ]
 
 [project.optional-dependencies]

@@ -299,6 +299,78 @@ class MarketScanner:
 
         return results[:limit]
 
+    def movers(
+        self,
+        period: str = "1d",
+        *,
+        limit: int = 20,
+        min_volume_24h: float = 1_000,
+        max_pages: int = 5,
+    ) -> list[MarketSnapshot]:
+        """Markets with the biggest price moves, sorted by magnitude.
+
+        Args:
+            period: "1h", "1d", or "1w"
+            limit: Max results.
+            min_volume_24h: Filter out dead markets.
+
+        Returns:
+            List sorted by absolute price change (largest moves first).
+        """
+        change_attr = {
+            "1h": "price_change_1h",
+            "1d": "price_change_1d",
+            "1w": "price_change_1w",
+        }
+        attr = change_attr.get(period)
+        if attr is None:
+            raise ValueError(f"period must be '1h', '1d', or '1w', got {period!r}")
+
+        markets = self.scan(
+            min_volume_24h=min_volume_24h,
+            sort_by="volume_24h",
+            limit=500,
+            max_pages=max_pages,
+        )
+        # Filter out zero-change markets, sort by absolute change
+        markets = [m for m in markets if getattr(m, attr) != 0]
+        markets.sort(key=lambda m: abs(getattr(m, attr)), reverse=True)
+        return markets[:limit]
+
+    def trending(
+        self,
+        *,
+        max_age_hours: float = 72,
+        limit: int = 20,
+        min_volume_24h: float = 1_000,
+        max_pages: int = 5,
+    ) -> list[MarketSnapshot]:
+        """Recently created markets gaining traction.
+
+        Args:
+            max_age_hours: Only include markets created within this many hours.
+            limit: Max results.
+            min_volume_24h: Minimum 24h volume to count as "gaining traction."
+
+        Returns:
+            List sorted by 24h volume (highest first).
+        """
+        now = datetime.now(timezone.utc)
+        markets = self.scan(
+            min_volume_24h=min_volume_24h,
+            sort_by="volume_24h",
+            limit=500,
+            max_pages=max_pages,
+        )
+        results = []
+        for m in markets:
+            if m.created_at is None:
+                continue
+            age_hours = (now - m.created_at).total_seconds() / 3600
+            if age_hours <= max_age_hours:
+                results.append(m)
+        return results[:limit]
+
     def enrich(self, markets: list[MarketSnapshot]) -> list[MarketSnapshot]:
         """Add orderbook depth data to each market (one API call per market).
 
@@ -357,6 +429,50 @@ class MarketScanner:
         self.close()
 
 
+def to_df(markets: list[MarketSnapshot]) -> "pandas.DataFrame":
+    """Convert a list of MarketSnapshot to a pandas DataFrame.
+
+    Requires pandas (install with `pip install predx[analytics]`).
+
+    Usage:
+        from predx.analytics import MarketScanner, to_df
+
+        scanner = MarketScanner()
+        df = to_df(scanner.scan(min_volume_24h=50_000))
+        df.head()
+    """
+    import pandas as pd
+
+    if not markets:
+        return pd.DataFrame()
+
+    rows = []
+    for m in markets:
+        rows.append({
+            "question": m.question,
+            "yes_price": m.yes_price,
+            "spread": m.spread,
+            "volume_24h": m.volume_24h,
+            "volume_1w": m.volume_1w,
+            "volume_total": m.volume_total,
+            "liquidity": m.liquidity,
+            "open_interest": m.open_interest,
+            "price_change_1h": m.price_change_1h,
+            "price_change_1d": m.price_change_1d,
+            "price_change_1w": m.price_change_1w,
+            "best_bid": m.best_bid,
+            "best_ask": m.best_ask,
+            "hours_to_expiry": m.hours_to_expiry,
+            "has_rewards": m.has_rewards,
+            "competitive": m.competitive,
+            "category": m.category,
+            "neg_risk": m.neg_risk,
+            "condition_id": m.condition_id,
+            "slug": m.slug,
+        })
+    return pd.DataFrame(rows)
+
+
 def _sort_key(sort_by: str):
     """Return a sort key function for MarketSnapshot."""
     field_map = {
@@ -367,5 +483,9 @@ def _sort_key(sort_by: str):
         "spread": lambda m: -m.spread,  # lower spread = better, so negate for desc
         "competitive": lambda m: m.competitive,
         "open_interest": lambda m: m.open_interest,
+        "price_change_1h": lambda m: abs(m.price_change_1h),
+        "price_change_1d": lambda m: abs(m.price_change_1d),
+        "price_change_1w": lambda m: abs(m.price_change_1w),
+        "created_at": lambda m: m.created_at.timestamp() if m.created_at else 0,
     }
     return field_map.get(sort_by, field_map["volume_24h"])

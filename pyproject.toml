@@ -43,3 +43,7 @@ Issues = "https://github.com/achalps/predx/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["predx"]
+exclude = ["predx/tools/"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["predx/tools/", "farmer.py", "farmer.ipynb", "analysis.ipynb", "session_analysis.ipynb", "approve_allowance.py"]

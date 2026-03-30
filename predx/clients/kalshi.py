@@ -1,9 +1,11 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Generator, Optional
+from typing import TYPE_CHECKING, Generator, Optional
 
-from ..auth.kalshi import KalshiSigner
 from ..config import KalshiConfig
+
+if TYPE_CHECKING:
+    from ..auth.kalshi import KalshiSigner
 from ..models.common import Market, Orderbook, Trade, Position, Order
 from ..models.kalshi import (
     market_from_kalshi,
@@ -20,28 +22,43 @@ class KalshiClient(BaseClient):
     """
     Kalshi REST API client.
 
-    Auth is required for all endpoints. Configure via env vars or KalshiConfig:
+    Read-only endpoints (markets, trades, events, series) work without auth.
+    Portfolio and order endpoints require auth via env vars or KalshiConfig:
         KALSHI_API_KEY
         KALSHI_PRIVATE_KEY_PATH
 
     Usage:
+        # No auth needed for reads:
         with KalshiClient() as k:
             for market in k.get_markets(status="open"):
                 print(market.id, market.yes_price)
 
-        ob = k.get_orderbook("TRUMP-2024-PRESIDENT")
-        print(ob.best_bid, ob.best_ask, ob.spread)
+        # Auth needed for orders/portfolio:
+        with KalshiClient(KalshiConfig(api_key="...", private_key_path="...")) as k:
+            k.place_order(...)
     """
 
     def __init__(self, config: Optional[KalshiConfig] = None):
-        cfg = config or KalshiConfig()
+        cfg = config or KalshiConfig.with_defaults()
         super().__init__(cfg.base_url, cfg.timeout, cfg.max_retries)
-        self._signer = KalshiSigner(cfg.api_key, cfg.private_key_path)
+        self._signer: Optional["KalshiSigner"] = None
+        if cfg.api_key and cfg.private_key_path:
+            from ..auth.kalshi import KalshiSigner
+            self._signer = KalshiSigner(cfg.api_key, cfg.private_key_path)
         self._ws_url = cfg.ws_url
 
     def _auth(self, method: str, path: str) -> dict:
-        """Generate fresh auth headers. Must be called per-request (timestamp changes)."""
+        """Generate fresh auth headers. Returns empty dict if no auth configured."""
+        if self._signer is None:
+            return {}
         return self._signer.sign(method, path)
+
+    def _require_auth(self) -> None:
+        """Raise if auth is not configured (for portfolio/order endpoints)."""
+        if self._signer is None:
+            raise ValueError(
+                "Auth required. Set KALSHI_API_KEY and KALSHI_PRIVATE_KEY_PATH env vars."
+            )
 
     # -------------------------------------------------------------------------
     # Markets
@@ -191,6 +208,7 @@ class KalshiClient(BaseClient):
 
     def get_balance(self) -> dict:
         """Returns balance dict with 'balance' key in cents."""
+        self._require_auth()
         return self._request(
             "GET", "/portfolio/balance",
             extra_headers=self._auth("GET", "/portfolio/balance"),
@@ -198,6 +216,7 @@ class KalshiClient(BaseClient):
 
     def get_positions(self, ticker: Optional[str] = None) -> list[Position]:
         """Get all open positions."""
+        self._require_auth()
         params = {}
         if ticker:
             params["ticker"] = ticker
@@ -214,6 +233,7 @@ class KalshiClient(BaseClient):
         max_items: Optional[int] = None,
     ) -> Generator[Order, None, None]:
         """Paginated generator over orders."""
+        self._require_auth()
         params: dict = {"limit": 100}
         if ticker:
             params["ticker"] = ticker
@@ -239,6 +259,7 @@ class KalshiClient(BaseClient):
         max_items: Optional[int] = None,
     ) -> Generator[dict, None, None]:
         """Paginated generator over fill history (raw API response)."""
+        self._require_auth()
         params: dict = {"limit": 100}
         if ticker:
             params["ticker"] = ticker
@@ -276,6 +297,7 @@ class KalshiClient(BaseClient):
 
         Prices are in cents (Kalshi native). For a YES buy at 65 cents: yes_price=65.
         """
+        self._require_auth()
         body: dict = {
             "ticker": ticker,
             "side": side,
@@ -298,11 +320,13 @@ class KalshiClient(BaseClient):
 
     def cancel_order(self, order_id: str) -> dict:
         """Cancel a single order by ID."""
+        self._require_auth()
         path = f"/portfolio/orders/{order_id}"
         return self._request("DELETE", path, extra_headers=self._auth("DELETE", path))
 
     def cancel_all_orders(self, ticker: Optional[str] = None) -> dict:
         """Cancel all open orders, optionally filtered to a specific market."""
+        self._require_auth()
         params = {}
         if ticker:
             params["ticker"] = ticker

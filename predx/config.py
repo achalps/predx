@@ -7,14 +7,19 @@ from typing import Optional
 
 @dataclass
 class KalshiConfig:
-    api_key: str = field(default_factory=lambda: os.environ["KALSHI_API_KEY"])
-    private_key_path: Path = field(
-        default_factory=lambda: Path(os.environ["KALSHI_PRIVATE_KEY_PATH"])
+    api_key: Optional[str] = field(default_factory=lambda: os.environ.get("KALSHI_API_KEY"))
+    private_key_path: Optional[Path] = field(
+        default_factory=lambda: Path(p) if (p := os.environ.get("KALSHI_PRIVATE_KEY_PATH")) else None
     )
     base_url: str = "https://api.elections.kalshi.com/trade-api/v2"
     ws_url: str = "wss://api.elections.kalshi.com/trade-api/ws/v2"
     timeout: float = 10.0
     max_retries: int = 3
+
+    @classmethod
+    def with_defaults(cls) -> "KalshiConfig":
+        """Create config, pulling from env vars if available but not requiring them."""
+        return cls()
 
 
 @dataclass

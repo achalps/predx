@@ -222,6 +222,115 @@ class PolymarketClient:
                 continue
 
     # -------------------------------------------------------------------------
+    # Historical / batch access
+    # -------------------------------------------------------------------------
+
+    def get_closed_markets(
+        self,
+        slug_contains: Optional[str] = None,
+        tag_slug: Optional[str] = None,
+        max_items: Optional[int] = None,
+    ) -> Generator[Market, None, None]:
+        """
+        Get closed/settled markets.
+
+        Convenience wrapper — equivalent to get_markets(active=False, closed=True, ...).
+        Useful for studying resolved markets and historical patterns.
+        """
+        yield from self.get_markets(
+            active=False, closed=True,
+            slug_contains=slug_contains, tag_slug=tag_slug, max_items=max_items,
+        )
+
+    def get_event_markets(self, event_slug: str) -> list[PolymarketMarket]:
+        """
+        Get all child markets under a specific event.
+
+        Args:
+            event_slug: The event slug, e.g. 'ethereum-above-on-march-30-2026-3am-et'.
+                        Find slugs from raw data: market.raw.get('events', [{}])[0].get('slug')
+
+        Returns:
+            List of PolymarketMarket objects (use .to_common() for normalized Market).
+        """
+        resp = self._gamma.get(f"/events/{event_slug}")
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        results = []
+        for raw in data.get("markets", []):
+            try:
+                results.append(PolymarketMarket.from_gamma(raw))
+            except Exception:
+                continue
+        return results
+
+    def get_market_history(
+        self,
+        condition_id: str,
+        interval: str = "max",
+        include_trades: bool = True,
+        max_trades: Optional[int] = 100,
+    ) -> dict:
+        """
+        One-call market study: fetch details, price history, and trades.
+
+        Handles the condition_id → token_id → price_history chain internally.
+
+        Args:
+            condition_id: The market's condition ID.
+            interval: Price history interval — "1m", "5m", "1h", "6h", "1d", "1w", "max".
+            include_trades: Whether to also fetch trade history.
+            max_trades: Max trades to fetch (None = all).
+
+        Returns:
+            Dict with 'market' (PolymarketMarket), 'price_history' (list[dict]),
+            and optionally 'trades' (list[Trade]).
+        """
+        market = self.get_raw_market(condition_id)
+        token_id = market.yes_token_id()
+        price_history = self.get_price_history(token_id, interval=interval) if token_id else []
+        result: dict = {"market": market, "price_history": price_history}
+        if include_trades:
+            result["trades"] = list(self.get_trades(condition_id, max_items=max_trades))
+        return result
+
+    def batch_histories(
+        self,
+        condition_ids: list[str],
+        interval: str = "max",
+        include_trades: bool = False,
+        max_trades: Optional[int] = 100,
+    ) -> list[dict]:
+        """
+        Fetch price history (and optionally trades) for multiple markets.
+
+        Args:
+            condition_ids: List of market condition IDs.
+            interval: Price history interval.
+            include_trades: Whether to also fetch trade history per market.
+            max_trades: Max trades per market (None = all).
+
+        Returns:
+            List of dicts with 'market_id', 'market' (PolymarketMarket),
+            'price_history' (list[dict]), and optionally 'trades' (list[Trade]).
+            Markets that fail to fetch are skipped silently.
+        """
+        results = []
+        for cid in condition_ids:
+            try:
+                data = self.get_market_history(
+                    cid, interval=interval,
+                    include_trades=include_trades, max_trades=max_trades,
+                )
+                data["market_id"] = cid
+                results.append(data)
+            except Exception:
+                continue
+        return results
+
+    # -------------------------------------------------------------------------
     # Order placement (requires auth)
     # -------------------------------------------------------------------------
 

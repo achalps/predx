@@ -50,25 +50,34 @@ class PolymarketClient:
 
     def get_markets(
         self,
-        active: bool = True,
+        active: Optional[bool] = True,
         closed: bool = False,
         tag_slug: Optional[str] = None,
         slug_contains: Optional[str] = None,
+        order: Optional[str] = None,
+        ascending: bool = False,
         max_items: Optional[int] = None,
     ) -> Generator[Market, None, None]:
         """
         Paginated generator over Polymarket markets. Yields normalized Market objects.
 
         Args:
-            active: Include active markets
+            active: Include active markets (None = don't filter on active flag)
             closed: Include closed markets
             tag_slug: Filter by tag (e.g. "politics", "sports", "crypto")
             slug_contains: Filter by slug substring (e.g. "trump", "bitcoin")
+            order: Sort field (e.g. "createdAt", "volume", "volume24hr", "endDate")
+            ascending: Sort direction (default: descending)
             max_items: Stop after N markets
         """
-        params: dict = {"limit": 100, "active": str(active).lower(), "closed": str(closed).lower()}
+        params: dict = {"limit": 100, "closed": str(closed).lower()}
+        if active is not None:
+            params["active"] = str(active).lower()
         if tag_slug:
             params["tag_slug"] = tag_slug
+        if order:
+            params["order"] = order
+            params["ascending"] = str(ascending).lower()
 
         def _fetch(offset: int):
             p = dict(params)
@@ -229,16 +238,23 @@ class PolymarketClient:
         self,
         slug_contains: Optional[str] = None,
         tag_slug: Optional[str] = None,
+        order: str = "createdAt",
         max_items: Optional[int] = None,
     ) -> Generator[Market, None, None]:
         """
-        Get closed/settled markets.
+        Get closed/settled markets, newest first by default.
 
-        Convenience wrapper — equivalent to get_markets(active=False, closed=True, ...).
-        Useful for studying resolved markets and historical patterns.
+        Note: Polymarket's Gamma API keeps active=True even for resolved markets,
+        so this doesn't filter on the active flag — only requires closed=True.
+
+        Args:
+            slug_contains: Filter by slug substring (e.g. "bitcoin-above")
+            tag_slug: Filter by tag (e.g. "crypto")
+            order: Sort field (default "createdAt"). Also: "volume", "endDate".
+            max_items: Stop after N markets.
         """
         yield from self.get_markets(
-            active=False, closed=True,
+            active=None, closed=True, order=order,
             slug_contains=slug_contains, tag_slug=tag_slug, max_items=max_items,
         )
 

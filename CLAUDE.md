@@ -20,6 +20,8 @@ These findings are from live API testing (March 2026):
 - **Recurring crypto markets**: "Bitcoin/Ethereum above X on DATE, TIME ET?" — ~140 markets per time slot (70 BTC + 70 ETH), ~5 slots/day. Grouped by event slug: `{asset}-above-on-{date}-{time}-et`. Low individual volume ($100-$2K).
 - **MarketScanner** is hardcoded to `active=True` — cannot find closed markets. Use `PolymarketClient.get_markets(closed=True)` directly.
 - **Gamma API `slug_contains`** is client-side filtering only (line 80-81 of `polymarket.py`).
+- **Gamma API `active` flag**: Recently resolved markets have `active=True` AND `closed=True`. Don't filter `active=False` when looking for closed markets — use `active=None` to skip the filter.
+- **Gamma API default ordering** returns oldest markets first. Always pass `order=createdAt` descending to get recent results.
 
 ### Kalshi
 - **Reads don't require auth** (contrary to what predx currently assumes in the client). The Kalshi REST API returns data for unauthenticated requests.

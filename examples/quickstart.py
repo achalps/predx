@@ -1,8 +1,10 @@
 """
-predx quickstart — scan Polymarket, find movers, and export to pandas.
+predx quickstart — scan, analyze, and export prediction market data.
 No API keys needed.
 """
+from predx import PolymarketClient
 from predx.analytics import MarketScanner, to_df
+from predx.analytics.execution import analyze, slippage_curve
 
 scanner = MarketScanner()
 
@@ -31,3 +33,18 @@ for m in trending:
 print("\n=== DataFrame Preview ===\n")
 df = to_df(markets)
 print(df[["question", "volume_24h", "best_bid", "best_ask", "spread"]].to_string(index=False))
+
+# ── 5. Execution analytics on the top market ──
+print("\n=== Execution Analytics ===\n")
+top = markets[0]
+pm = PolymarketClient()
+raw = pm.get_raw_market(top.condition_id)
+ob = pm.get_orderbook(raw.yes_token_id())
+pm.close()
+
+report = analyze(ob)
+print(report)
+
+print(f"\n{'Size':>8}  {'Avg Price':>9}  {'Slippage':>8}  {'Fillable':>8}")
+for pt in slippage_curve(ob, side="buy", sizes=[100, 1000, 5000]):
+    print(f"{pt.size:>8,.0f}  {pt.avg_price:>9.4f}  {pt.slippage_bps:>7.0f}bp  {str(pt.fillable):>8}")
